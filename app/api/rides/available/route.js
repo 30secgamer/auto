@@ -1,12 +1,26 @@
 import { NextResponse } from "next/server";
 import Ride from "@/models/Ride";
 import { connectDB } from "@/lib/db";
+import Driver from "@/models/Driver";
 
 export async function GET(req) {
 
   try {
 
     await connectDB();
+    await Ride.updateMany(
+  {
+    status: "searching",
+    requestExpiresAt: {
+      $lt: new Date(),
+    },
+  },
+  {
+    $set: {
+      status: "cancelled",
+    },
+  }
+);
 
     // ✅ GET DRIVER ID FROM URL
     const { searchParams } =
@@ -14,6 +28,22 @@ export async function GET(req) {
 
     const driverId =
       searchParams.get("driverId");
+
+const activeRide = await Ride.findOne({
+  driverId,
+  status: {
+    $in: [
+      "accepted",
+      "arriving",
+      "pickedup",
+      "reached_drop",
+    ],
+  },
+});
+
+if (activeRide) {
+  return NextResponse.json([]);
+}
 
     // ⏱️ 15 SECONDS PRIORITY
     const priorityTime =
@@ -38,6 +68,10 @@ export async function GET(req) {
     const rides = await Ride.find({
 
       status: "searching",
+
+requestExpiresAt: {
+  $gt: new Date(),
+},
 
       $or: [
 

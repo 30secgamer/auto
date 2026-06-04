@@ -1,60 +1,8 @@
 "use client";
 
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Polyline,
-  useMap,
-} from "react-leaflet";
-
-import "leaflet/dist/leaflet.css";
-
-import L from "leaflet";
-import { useEffect } from "react";
-
-// ✅ FIX LEAFLET DEFAULT ICONS
-delete L.Icon.Default.prototype._getIconUrl;
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl:
-    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-
-  iconUrl:
-    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-
-  shadowUrl:
-    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
-
-// ✅ AUTO FIT MAP TO ROUTE
-function FitBounds({ points }) {
-
-  const map = useMap();
-
-  useEffect(() => {
-
-    if (!points || points.length === 0)
-      return;
-
-    // ✅ ONLY FIRST TIME
-    if (!map._fitDone) {
-
-      map.fitBounds(points, {
-        padding: [50, 50],
-      });
-
-      map._fitDone = true;
-    }
-
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 300);
-
-  }, [map, points]);
-
-  return null;
-}
+import { useEffect, useRef } from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 export default function RideMap({
   driverLat,
@@ -65,95 +13,283 @@ export default function RideMap({
   dropLon,
   otpVerified,
 }) {
+  const mapContainer = useRef(null);
+  const mapRef = useRef(null);
 
-  // ✅ FIX INVALID VALUES
+  const driverMarker = useRef(null);
+  const pickupMarker = useRef(null);
+  const dropMarker = useRef(null);
+
+  const mapLoaded = useRef(false);
+
+  useEffect(() => {
+    const dLat = parseFloat(driverLat);
+    const dLon = parseFloat(driverLon);
+
+    if (
+      !mapContainer.current ||
+      isNaN(dLat) ||
+      isNaN(dLon)
+    ) {
+      return;
+    }
+
+    if (!mapRef.current) {
+      mapRef.current = new maplibregl.Map({
+        container: mapContainer.current,
+        style:
+          "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        center: [dLon, dLat],
+        zoom: 15,
+      });
+
+      mapRef.current.addControl(
+        new maplibregl.NavigationControl(),
+        "top-right"
+      );
+
+      mapRef.current.on("load", () => {
+        mapLoaded.current = true;
+        updateMap();
+      });
+
+      return;
+    }
+
+    if (mapLoaded.current) {
+      updateMap();
+    }
+
+    async function updateMap() {
+      const map = mapRef.current;
+
+      const pLat = parseFloat(pickupLat);
+      const pLon = parseFloat(pickupLon);
+
+      const drLat = parseFloat(dropLat);
+      const drLon = parseFloat(dropLon);
+
+      let targetLat = null;
+      let targetLon = null;
+
+      if (
+        otpVerified &&
+        !isNaN(drLat) &&
+        !isNaN(drLon)
+      ) {
+        targetLat = drLat;
+        targetLon = drLon;
+      }
+
+      if (
+        !otpVerified &&
+        !isNaN(pLat) &&
+        !isNaN(pLon)
+      ) {
+        targetLat = pLat;
+        targetLon = pLon;
+      }
+// DRIVER MARKER
+
+if (!driverMarker.current) {
+  const el = document.createElement("div");
+
+  el.innerHTML = `
+    <div
+      class="driver-arrow"
+      style="
+        width:34px;
+        height:34px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        transition:transform .5s ease;
+      "
+    >
+      <svg
+        width="30"
+        height="30"
+        viewBox="0 0 24 24"
+        fill="#FFB300"
+        xmlns="http://www.w3.org/2000/svg"
+        style="
+          filter:drop-shadow(0 0 8px rgba(26,115,232,.6));
+        "
+      >
+        <path d="M12 2L22 22L12 17L2 22L12 2Z"/>
+      </svg>
+    </div>
+  `;
+
+  driverMarker.current = new maplibregl.Marker({
+    element: el,
+    anchor: "center",
+  })
+    .setLngLat([dLon, dLat])
+    .addTo(map);
+} else {
+  driverMarker.current.setLngLat([dLon, dLat]);
+
   if (
-    driverLat == null ||
-    driverLon == null ||
-    pickupLat == null ||
-    pickupLon == null
+    targetLat !== null &&
+    targetLon !== null
   ) {
-    return (
-      <div className="h-[320px] bg-black rounded-3xl flex items-center justify-center text-white">
-        Loading map...
-      </div>
-    );
+    const bearing =
+  Math.atan2(
+    targetLat - dLat,
+    targetLon - dLon
+  ) *
+  (180 / Math.PI) + 90;
+
+    const arrow =
+      driverMarker.current
+        ?.getElement()
+        ?.querySelector(".driver-arrow");
+
+    if (arrow) {
+      arrow.style.transform =
+        `rotate(${bearing}deg)`;
+    }
   }
+}
 
-  // ✅ CONVERT TO NUMBER
-  const dLat = Number(driverLat);
-  const dLon = Number(driverLon);
+      // PICKUP MARKER
+      if (
+        !otpVerified &&
+        !isNaN(pLat) &&
+        !isNaN(pLon)
+      ) {
+        if (!pickupMarker.current) {
+          const el = document.createElement("div");
 
-  const pLat = Number(pickupLat);
-  const pLon = Number(pickupLon);
+          el.style.width = "16px";
+          el.style.height = "16px";
+          el.style.background = "#3b82f6";
+          el.style.border = "3px solid white";
+          el.style.borderRadius = "50%";
 
-  const dropLatNum =
-    dropLat != null ? Number(dropLat) : null;
+          pickupMarker.current = new maplibregl.Marker(el)
+            .setLngLat([pLon, pLat])
+            .addTo(map);
+        } else {
+          pickupMarker.current.setLngLat([pLon, pLat]);
+        }
+      }
 
-  const dropLonNum =
-    dropLon != null ? Number(dropLon) : null;
+      // DROP MARKER
+      if (
+        otpVerified &&
+        !isNaN(drLat) &&
+        !isNaN(drLon)
+      ) {
+        if (!dropMarker.current) {
+          const el = document.createElement("div");
 
-  // ✅ ROUTE
-  const route = otpVerified
-    ? [
-        [dLat, dLon],
-        [dropLatNum, dropLonNum],
-      ]
-    : [
-        [dLat, dLon],
-        [pLat, pLon],
-      ];
+          el.style.width = "16px";
+          el.style.height = "16px";
+          el.style.background = "#ef4444";
+          el.style.border = "3px solid white";
+          el.style.borderRadius = "50%";
+
+          dropMarker.current = new maplibregl.Marker(el)
+            .setLngLat([drLon, drLat])
+            .addTo(map);
+        } else {
+          dropMarker.current.setLngLat([drLon, drLat]);
+        }
+      }
+
+      if (
+        targetLat === null ||
+        targetLon === null
+      ) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
+          {
+            method: "POST",
+            headers: {
+              Authorization:
+                process.env.NEXT_PUBLIC_ORS_KEY,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              coordinates: [
+                [dLon, dLat],
+                [targetLon, targetLat],
+              ],
+            }),
+          }
+        );
+
+        const routeData = await response.json();
+
+        if (!routeData.features?.length) return;
+
+        const routeGeoJson = routeData.features[0];
+
+        if (map.getSource("route")) {
+          const routeSource = map.getSource("route");
+
+if (routeSource) {
+  routeSource.setData(routeGeoJson);
+}
+        } else {
+          map.addSource("route", {
+            type: "geojson",
+            data: routeGeoJson,
+          });
+
+          map.addLayer({
+            id: "route-line",
+            type: "line",
+            source: "route",
+            layout: {
+              "line-cap": "round",
+              "line-join": "round",
+            },
+           paint: {
+  "line-color": "#1A73E8",
+  "line-width": 7,
+  "line-opacity": 0.9,
+},
+          });
+        }
+
+        const bounds = new maplibregl.LngLatBounds();
+
+        routeGeoJson.geometry.coordinates.forEach(
+          (coord) => bounds.extend(coord)
+        );
+
+        map.fitBounds(bounds, {
+          padding: 70,
+          duration: 1200,
+        });
+      } catch (err) {
+        console.error(
+          "Route Fetch Error:",
+          err
+        );
+      }
+    }
+  }, [
+    driverLat,
+    driverLon,
+    pickupLat,
+    pickupLon,
+    dropLat,
+    dropLon,
+    otpVerified,
+  ]);
 
   return (
-    <div className="overflow-hidden rounded-3xl h-[320px] w-full">
-
-      <MapContainer
-        center={[dLat, dLon]}
-        zoom={15}
-        scrollWheelZoom={true}
-        className="h-full w-full z-0"
-      >
-
-        {/* ✅ DARK MAP */}
-        <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        />
-
-        {/* DRIVER */}
-        <Marker position={[dLat, dLon]} />
-
-        {/* PICKUP */}
-        {!otpVerified && (
-          <Marker position={[pLat, pLon]} />
-        )}
-
-        {/* DROP */}
-        {otpVerified &&
-          dropLatNum != null &&
-          dropLonNum != null && (
-            <Marker
-              position={[
-                dropLatNum,
-                dropLonNum,
-              ]}
-            />
-          )}
-
-        {/* ROUTE LINE */}
-        <Polyline
-          positions={route}
-          pathOptions={{
-            color: "#22c55e",
-            weight: 6,
-          }}
-        />
-
-        {/* AUTO FIT */}
-        <FitBounds points={route} />
-
-      </MapContainer>
-
-    </div>
+    <div
+      ref={mapContainer}
+      className="h-[320px] w-full rounded-3xl overflow-hidden"
+    />
   );
 }

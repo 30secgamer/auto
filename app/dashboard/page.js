@@ -24,6 +24,9 @@ useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [rides, setRides] =
   useState([]);
+
+  const [completingRide, setCompletingRide] =
+  useState(false);
   // 🚕 FETCH AVAILABLE RIDES
 useEffect(() => {
 
@@ -352,43 +355,101 @@ setActiveRide((prev) => ({
     console.log(err);
   }
 };
-const completeRide =
-  async () => {
+const completeRide = async () => {
 
-    try {
+  if (completingRide) return;
 
-      const res = await fetch(
-        "/api/rides/complete",
-        {
-          method: "POST",
+  try {
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
+    setCompletingRide(true);
 
-          body: JSON.stringify({
-            rideId:
-              activeRide._id,
-          }),
-        }
-      );
-
-      const data =
-        await res.json();
-
-      if (!res.ok) {
-        alert(data.message);
-        return;
+    const res = await fetch(
+      "/api/rides/complete",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          rideId:
+            activeRide._id,
+        }),
       }
+    );
 
-      alert("Ride completed");
+    const data =
+      await res.json();
 
-      setActiveRide(null);
+   if (!res.ok) {
+  alert(data.message);
+  setCompletingRide(false);
+  return;
+}
 
-    } catch (err) {
-      console.log(err);
+alert("Ride completed");
+
+setActiveRide(null);
+
+setRides([]);
+
+// force dashboard refresh
+window.location.reload();
+
+  } catch (err) {
+
+    console.log(err);
+
+  } finally {
+
+    setCompletingRide(false);
+
+  }
+};
+const rewardTarget = 15;
+
+const completedRides =
+  driver.rewardRides || 0;
+
+const rewardProgress =
+  completedRides % rewardTarget;
+const rewardReady =
+  completedRides >= 15;
+
+const rewardAmount =
+  driver.rewardBalance || 0;
+
+
+  const claimReward = async () => {
+
+  if (rewardAmount <= 0) {
+    alert("No reward available");
+    return;
+  }
+
+  const res = await fetch(
+    "/api/rewards/claim",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify({
+        driverId: driver._id,
+      }),
     }
+  );
+
+  const data = await res.json();
+
+  if (data.success) {
+    alert(
+      "Reward withdrawal requested"
+    );
+
+    window.location.reload();
+  }
 };
 
  return (
@@ -682,9 +743,160 @@ const completeRide =
         </div>
 
       </div>
+
+      {/* DRIVER REWARDS */}
+
+<div className="relative overflow-hidden bg-gradient-to-br from-yellow-400 via-amber-400 to-orange-400 rounded-[30px] p-5 shadow-lg">
+
+  {/* Glow */}
+  <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/30 rounded-full blur-3xl" />
+
+  <div className="relative">
+
+    <div className="flex items-center justify-between mb-4">
+
+      <div>
+
+        <p className="text-xs font-medium text-black/70 uppercase tracking-wider">
+          Driver Rewards
+        </p>
+
+        <h2 className="text-2xl font-bold text-black mt-1">
+          🎁 Rewards Hub
+        </h2>
+
+      </div>
+
+      {/* Animated Gift */}
+
+      <div className="relative">
+
+        <div className="absolute inset-0 bg-white rounded-full blur-xl opacity-40 animate-pulse" />
+
+        <div className="relative text-5xl animate-bounce">
+          🎁
+        </div>
+
+      </div>
+
+    </div>
+
+    {/* Progress */}
+
+    <div className="bg-black/10 rounded-2xl p-4">
+
+      <div className="flex justify-between mb-2">
+
+        <span className="text-sm font-semibold">
+          Progress
+        </span>
+
+        <span className="text-sm font-bold">
+          {Math.min(rewardProgress,15)}/15 rides
+        </span>
+
+      </div>
+
+      <div className="w-full h-3 bg-white/40 rounded-full overflow-hidden">
+
+        <div
+          className="h-full bg-black rounded-full transition-all duration-700"
+          style={{
+            width: `${(rewardProgress / 15) * 100}%`,
+          }}
+        />
+
+      </div>
+
+      <p className="text-xs mt-2 text-black/70">
+        Complete 15 rides to unlock reward.
+      </p>
+
+    </div>
+
+    {/* Reward Amount */}
+
+    <div className="mt-4 bg-white/40 backdrop-blur rounded-2xl p-4 flex items-center justify-between">
+
+      <div>
+
+        <p className="text-xs text-black/60">
+          Available Reward
+        </p>
+
+        <h3 className="text-2xl font-bold text-black">
+          ₹{rewardAmount}
+        </h3>
+
+      </div>
+
+      {rewardReady ? (
+     <button
+  onClick={claimReward}
+  className="bg-black text-white px-5 py-3 rounded-2xl font-semibold"
+>
+  Withdraw ₹{rewardAmount}
+</button>
+      ) : (
+        <button
+          disabled
+          className="bg-black/30 text-black px-5 py-3 rounded-2xl font-semibold"
+        >
+          Locked
+        </button>
+      )}
+
+    </div>
+
+    {/* Milestone */}
+
+    <div className="grid grid-cols-3 gap-2 mt-4">
+
+      <div className="bg-white/30 rounded-xl p-3 text-center">
+
+        <div className="text-lg">
+          🚖
+        </div>
+
+        <p className="text-xs font-medium mt-1">
+          15 Rides
+        </p>
+
+      </div>
+
+      <div className="bg-white/30 rounded-xl p-3 text-center">
+
+        <div className="text-lg">
+          🏆
+        </div>
+
+        <p className="text-xs font-medium mt-1">
+          Reward
+        </p>
+
+      </div>
+
+      <div className="bg-white/30 rounded-xl p-3 text-center">
+
+        <div className="text-lg">
+          💸
+        </div>
+
+        <p className="text-xs font-medium mt-1">
+          Withdraw
+        </p>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
       {/* RIDE REQUESTS */}
 {online &&
-  rides.length > 0 && (
+ !activeRide &&
+ rides.length > 0 && (
 
   <div className="space-y-3">
 
@@ -794,14 +1006,16 @@ const completeRide =
   <h2 className="text-xl font-bold">
     Current Ride
   </h2>
+
+  
 {/* LIVE UBER STYLE MAP */}
 <RideMap
-  driverLat={activeRide.driverLat}
-  driverLon={activeRide.driverLon}
-  pickupLat={activeRide.pickupLat}
-  pickupLon={activeRide.pickupLon}
-  dropLat={activeRide.dropLat}
-  dropLon={activeRide.dropLon}
+  driverLat={Number(activeRide.driverLat)}
+  driverLon={Number(activeRide.driverLon)}
+  pickupLat={Number(activeRide.pickupLat)}
+  pickupLon={Number(activeRide.pickupLon)}
+  dropLat={Number(activeRide.dropLat)}
+  dropLon={Number(activeRide.dropLon)}
   otpVerified={activeRide.otpVerified}
 />
 
@@ -895,13 +1109,18 @@ const completeRide =
 
 )}
 
-{activeRide?.status === "reached_drop" && (
-  <button
-    onClick={completeRide}
-    className="w-full h-14 rounded-2xl bg-green-500 text-white font-bold text-lg"
-  >
-    Complete Ride
-  </button>
+{activeRide &&
+ activeRide.status === "reached_drop" &&
+ !completingRide && (
+ <button
+  onClick={completeRide}
+  disabled={completingRide}
+  className="w-full h-14 rounded-2xl bg-green-500 text-white font-bold text-lg"
+>
+  {completingRide
+    ? "Completing..."
+    : "Complete Ride"}
+</button>
 )}
       {/* STATS */}
       <div className="grid grid-cols-3 gap-3">

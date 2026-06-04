@@ -8,6 +8,15 @@ const userSchema = new mongoose.Schema(
       type: String,
       unique: true,
     },
+    rewardBalance: {
+  type: Number,
+  default: 0,
+},
+
+rewardRides: {
+  type: Number,
+  default: 0,
+},
 
     phone: {
       type: String,
@@ -16,6 +25,7 @@ const userSchema = new mongoose.Schema(
 
     password: String,
   },
+  
   {
     timestamps: true,
   },

@@ -3,32 +3,46 @@ import Ride from "@/models/Ride";
 import { connectDB } from "@/lib/db";
 
 export async function POST(req) {
-
   try {
-
     await connectDB();
 
     const { driverId } =
       await req.json();
 
-    const ride = await Ride.findOne({
-      driverId,
+    if (!driverId) {
+      return NextResponse.json(
+        null
+      );
+    }
 
-      status: {
-  $in: [
-    "accepted",
-    "arriving",
-    "pickedup",
-    "reached_drop",
-  ],
-},
-    }).sort({ createdAt: -1 });
+    const ride =
+      await Ride.findOne({
+        driverId,
+
+        status: {
+          $in: [
+            "accepted",
+            "arriving",
+            "pickedup",
+            "reached_drop",
+          ],
+        },
+      })
+        .sort({
+          createdAt: -1,
+        })
+        .lean();
 
     return NextResponse.json(
       ride || null
     );
 
-  } catch {
+  } catch (err) {
+
+    console.log(
+      "DRIVER ACTIVE ERROR:",
+      err
+    );
 
     return NextResponse.json(
       null

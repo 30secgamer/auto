@@ -26,9 +26,68 @@ export default function BookingPage() {
   useState(null);
   const [activeRide, setActiveRide] =
   useState(null);
+  const [driverDistance,
+setDriverDistance] =
+useState(0);
+
+const [eta,
+setEta] =
+useState(0);
   const [showFavoritePopup,
   setShowFavoritePopup] =
   useState(false);
+  const [loadingCurrentLocation, setLoadingCurrentLocation] =
+  useState(false);
+  const useCurrentLocation = () => {
+
+  setLoadingCurrentLocation(true);
+
+  navigator.geolocation.getCurrentPosition(
+
+    async (position) => {
+
+      try {
+
+        const lat =
+          position.coords.latitude;
+
+        const lon =
+          position.coords.longitude;
+
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
+        );
+
+        const data =
+          await res.json();
+
+        setPickup(
+          data.display_name
+        );
+
+      } catch (err) {
+
+        console.log(err);
+
+      } finally {
+
+        setLoadingCurrentLocation(false);
+
+      }
+
+    },
+
+    (err) => {
+
+      console.log(err);
+
+      setLoadingCurrentLocation(false);
+
+    }
+
+  );
+
+};
 
   // 🚕 FETCH FARE
   const calculateFare = async () => {
@@ -82,9 +141,9 @@ const getSuggestions = async (
       url =
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           query
-        )}&addressdetails=1&limit=10&countrycodes=in&viewbox=${
-          userLocation.lon - 0.15
-        },${userLocation.lat + 0.15},${
+        )}&addressdetails=1&limit=15&countrycodes=in&viewbox=${
+          userLocation.lon - 0.08
+        },${userLocation.lat + 0.08},${
           userLocation.lon + 0.15
         },${userLocation.lat - 0.15}&bounded=1`;
 
@@ -101,58 +160,55 @@ const getSuggestions = async (
 
     const data = await res.json();
 
-    const search = query.toLowerCase();
+    const search =
+  query.toLowerCase();
 
-    const sortedResults = data.sort(
-      (a, b) => {
+const sortedResults = data
+  .map((item) => {
 
-        const aName =
-          a.display_name.toLowerCase();
+    const name =
+      item.display_name.toLowerCase();
 
-        const bName =
-          b.display_name.toLowerCase();
+    let score = 0;
 
-        // ✅ STARTS WITH
-        const aStarts =
-          aName.startsWith(search);
+    if (
+      name.startsWith(search)
+    ) {
+      score += 100;
+    }
 
-        const bStarts =
-          bName.startsWith(search);
+    if (
+      name.includes(search)
+    ) {
+      score += 50;
+    }
 
-        if (aStarts && !bStarts)
-          return -1;
+    if (
+      item.address?.road
+        ?.toLowerCase()
+        ?.includes(search)
+    ) {
+      score += 30;
+    }
 
-        if (!aStarts && bStarts)
-          return 1;
+    if (
+      item.address?.suburb
+        ?.toLowerCase()
+        ?.includes(search)
+    ) {
+      score += 20;
+    }
 
-        // ✅ FIRST PLACE NAME
-        const aFirst =
-          aName.split(",")[0];
+    return {
+      ...item,
+      score,
+    };
+  })
 
-        const bFirst =
-          bName.split(",")[0];
-
-        const aFirstStarts =
-          aFirst.startsWith(search);
-
-        const bFirstStarts =
-          bFirst.startsWith(search);
-
-        if (
-          aFirstStarts &&
-          !bFirstStarts
-        )
-          return -1;
-
-        if (
-          !aFirstStarts &&
-          bFirstStarts
-        )
-          return 1;
-
-        return 0;
-      }
-    );
+  .sort(
+    (a, b) =>
+      b.score - a.score
+  );
 
     if (type === "pickup") {
       setPickupSuggestions(
@@ -261,17 +317,41 @@ useEffect(() => {
 useEffect(() => {
 
   navigator.geolocation.getCurrentPosition(
-    (position) => {
+
+    async (position) => {
+
+      const lat =
+        position.coords.latitude;
+
+      const lon =
+        position.coords.longitude;
 
       setUserLocation({
-        lat: position.coords.latitude,
-        lon: position.coords.longitude,
+        lat,
+        lon,
       });
 
-    },
-    (error) => {
-      console.log(error);
+      try {
+
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`
+        );
+
+        const data =
+          await res.json();
+
+        setPickup(
+          data.display_name
+        );
+
+      } catch (err) {
+
+        console.log(err);
+
+      }
+
     }
+
   );
 
 }, []);
@@ -347,6 +427,70 @@ useEffect(() => {
   }
 
 }, [activeRide]);
+useEffect(() => {
+
+  if (
+    !activeRide?.driverLat ||
+    !activeRide?.pickupLat
+  ) return;
+
+  const distance =
+    calculateDistance(
+      activeRide.driverLat,
+      activeRide.driverLon,
+      activeRide.pickupLat,
+      activeRide.pickupLon
+    );
+
+  setDriverDistance(
+    distance.toFixed(1)
+  );
+
+  setEta(
+    Math.max(
+      1,
+      Math.ceil(distance / 0.4)
+    )
+  );
+
+}, [activeRide]);
+
+const calculateDistance = (
+  lat1,
+  lon1,
+  lat2,
+  lon2
+) => {
+
+  const R = 6371;
+
+  const dLat =
+    ((lat2 - lat1) * Math.PI) / 180;
+
+  const dLon =
+    ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) *
+      Math.sin(dLat / 2) +
+    Math.cos(
+      (lat1 * Math.PI) / 180
+    ) *
+      Math.cos(
+      (lat2 * Math.PI) / 180
+    ) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
+
+  const c =
+    2 *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a)
+    );
+
+  return R * c;
+};
 
 // 🚕 BOOK RIDE
 const bookRide = async () => {
@@ -497,30 +641,127 @@ const saveFavoriteDriver =
       {/* MAIN */}
       <div className="max-w-md mx-auto p-4 space-y-4">
 
-        {/* MAP */}
-        <div className="h-[280px] rounded-[30px] overflow-hidden bg-gray-200 relative shadow-sm">
+        {/* REWARDS CARD */}
 
-          <img
-            src="https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=1200&auto=format&fit=crop"
-            className="w-full h-full object-cover"
-          />
+<div className="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 rounded-[30px] p-5 text-white shadow-lg overflow-hidden relative">
 
-          <div className="absolute inset-0 bg-black/10" />
+  <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
 
-          {/* PIN */}
-          <div className="absolute inset-0 flex items-center justify-center">
+  <div className="relative z-10">
 
-            <div className="relative">
+    <div className="flex items-center justify-between">
 
-              <div className="w-5 h-5 rounded-full bg-black border-4 border-white shadow-xl" />
+      <div>
 
-              <div className="absolute inset-0 animate-ping rounded-full bg-black/30" />
+        <p className="text-white/80 text-sm">
+          Gift Rewards
+        </p>
 
-            </div>
+        <h2 className="text-4xl font-bold">
+          ₹{user?.rewardBalance || 0}
+        </h2>
 
-          </div>
+      </div>
 
-        </div>
+      <div className="text-5xl">
+        🎁
+      </div>
+
+    </div>
+
+    <div className="mt-5">
+
+      <div className="flex justify-between text-sm mb-2">
+
+        <span>
+          Progress to next milestone
+        </span>
+
+        <span>
+          {user?.rewardRides || 0}/15
+        </span>
+
+      </div>
+
+      <div className="h-3 bg-white/20 rounded-full overflow-hidden">
+
+        <div
+          className="h-full bg-white rounded-full transition-all"
+          style={{
+            width: `${Math.min(
+              ((user?.rewardRides || 0) /
+                15) *
+                100,
+              100
+            )}%`,
+          }}
+        />
+
+      </div>
+
+      <p className="text-xs text-white/80 mt-3">
+
+        Earn ₹1 for rides under 10km
+        and ₹2 for rides above 10km.
+
+      </p>
+
+    </div>
+
+  </div>
+
+</div>
+
+driverLat={activeRide?.driverLat}
+driverLon={activeRide?.driverLon}
+
+pickupLat={activeRide?.pickupLat}
+pickupLon={activeRide?.pickupLon}
+
+dropLat={activeRide?.dropLat}
+dropLon={activeRide?.dropLon}
+
+        {activeRide?.driverId && (
+
+<div className="bg-white rounded-[30px] border border-gray-200 p-5 shadow-sm">
+
+  <div className="flex items-center justify-between">
+
+    <div>
+
+      <p className="text-xs text-gray-500">
+        Driver Status
+      </p>
+
+      <h2 className="text-lg font-bold text-gray-900">
+
+        {activeRide.driverName}
+
+      </h2>
+
+    </div>
+
+    <div className="text-right">
+
+      <p className="text-green-600 font-semibold">
+
+        {driverDistance} km away
+
+      </p>
+
+      <p className="text-xs text-gray-500">
+
+        ETA {eta} min
+
+      </p>
+
+    </div>
+
+  </div>
+
+</div>
+
+)}
 
         {/* LOCATION CARD */}
         <div className="bg-white rounded-[30px] border border-gray-200 p-5 shadow-sm">
@@ -554,6 +795,23 @@ const saveFavoriteDriver =
                     }
                     className="w-full outline-none text-[15px] font-medium text-gray-900 placeholder:text-gray-400"
                   />
+                  <button
+  onClick={useCurrentLocation}
+  className="
+  mt-2
+  flex
+  items-center
+  gap-2
+  text-sm
+  font-medium
+  text-blue-600
+"
+>
+  📍
+  {loadingCurrentLocation
+    ? "Getting location..."
+    : "Use Current Location"}
+</button>
 
                 </div>
 
@@ -640,9 +898,22 @@ const saveFavoriteDriver =
                           className="w-full text-left p-4 hover:bg-gray-50 border-b last:border-b-0 border-gray-100"
                         >
 
-                          <p className="text-sm font-medium text-gray-900 line-clamp-1">
-                            {place.display_name}
-                          </p>
+                          <div>
+
+  <p className="font-semibold text-gray-900">
+
+    {place.display_name
+      .split(",")[0]}
+
+  </p>
+
+  <p className="text-xs text-gray-500">
+
+    {place.display_name}
+
+  </p>
+
+</div>
 
                         </button>
                       ))}

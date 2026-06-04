@@ -29,6 +29,15 @@ const DriverSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+  rewardBalance: {
+  type: Number,
+  default: 0,
+},
+
+rewardRides: {
+  type: Number,
+  default: 0,
+},
 
   createdAt: {
     type: Date,

@@ -24,6 +24,9 @@ const RideSchema = new mongoose.Schema(
     otp: {
       type: String,
     },
+    requestExpiresAt: {
+  type: Date,
+},
 
     otpVerified: {
       type: Boolean,
@@ -33,14 +36,15 @@ const RideSchema = new mongoose.Schema(
     // 🚕 RIDE STATUS
     status: {
       type: String,
-      enum: [
-        "searching",
-        "accepted",
-        "arriving",
-        "pickedup",
-        "completed",
-        "cancelled",
-      ],
+     enum: [
+  "searching",
+  "accepted",
+  "arriving",
+  "pickedup",
+  "reached_drop",
+  "completed",
+  "cancelled",
+],
       default: "searching",
     },
 
@@ -75,10 +79,12 @@ const RideSchema = new mongoose.Schema(
     pickedUpAt: Date,
     completedAt: Date,
   },
+  
 
   {
     timestamps: true,
   }
+
 );
 
 export default mongoose.models.Ride ||

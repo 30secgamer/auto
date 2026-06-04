@@ -50,9 +50,17 @@ export async function GET(req) {
       );
     }
 
-    return NextResponse.json({
-      user,
-    });
+   return NextResponse.json({
+  user: {
+    ...user.toObject(),
+
+    rewardBalance:
+      user.rewardBalance || 0,
+
+    rewardRides:
+      user.rewardRides || 0,
+  },
+});
 
   } catch (err) {
 

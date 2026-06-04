@@ -147,6 +147,9 @@ export async function POST(req) {
             : null,
 
         status: "searching",
+         requestExpiresAt: new Date(
+    Date.now() + 60000
+  ), // 60 sec
       });
 
     return NextResponse.json({

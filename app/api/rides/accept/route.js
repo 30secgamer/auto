@@ -66,6 +66,33 @@ export async function POST(req) {
       );
     }
 
+    const driverActiveRide =
+  await Ride.findOne({
+    driverId,
+    status: {
+      $in: [
+        "accepted",
+        "arriving",
+        "pickedup",
+        "reached_drop",
+      ],
+    },
+  });
+
+if (driverActiveRide) {
+
+  return NextResponse.json(
+    {
+      message:
+        "Complete current ride first",
+    },
+    {
+      status: 400,
+    }
+  );
+
+}
+
     // ✅ UPDATE RIDE
     ride.status = "accepted";
     ride.preferredDriverExpiresAt =
