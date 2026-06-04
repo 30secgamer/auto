@@ -15,6 +15,12 @@ export async function POST(req) {
 
     const ride =
       await Ride.findById(rideId);
+      if (ride?.status === "completed") {
+  return NextResponse.json({
+    success: true,
+    message: "Ride already completed",
+  });
+}
 
     if (!ride) {
 
@@ -43,7 +49,9 @@ const rewardAmount =
 
 // ✅ UPDATE DRIVER
 
-await Driver.findByIdAndUpdate(
+const updatedDriver =
+  await Driver.findByIdAndUpdate(
+    ride.driverId,
   ride.driverId,
   {
     $inc: {
@@ -55,7 +63,10 @@ await Driver.findByIdAndUpdate(
     },
   }
 );
-
+console.log(
+  "UPDATED DRIVER",
+  updatedDriver
+);
 // ✅ UPDATE USER
 
 await User.findOneAndUpdate(

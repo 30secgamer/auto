@@ -58,7 +58,7 @@ useEffect(() => {
   return () =>
     clearInterval(interval);
 
-}, [online]);
+}, [online, driver]);
 
   useEffect(() => {
     
@@ -392,6 +392,13 @@ alert("Ride completed");
 setActiveRide(null);
 
 setRides([]);
+
+// stop polling immediately
+setCompletingRide(true);
+
+setTimeout(() => {
+  window.location.reload();
+}, 3000);
 
 // force dashboard refresh
 window.location.reload();
