@@ -124,7 +124,15 @@ useEffect(() => {
         const data =
           await res.json();
 
-        setActiveRide(data);
+        if (
+  data &&
+  data.status === "completed"
+) {
+  setActiveRide(null);
+  return;
+}
+
+setActiveRide(data);
 
       } catch (err) {
         console.log(err);
@@ -393,15 +401,7 @@ setActiveRide(null);
 
 setRides([]);
 
-// stop polling immediately
-setCompletingRide(true);
-
-setTimeout(() => {
-  window.location.reload();
-}, 3000);
-
-// force dashboard refresh
-window.location.reload();
+return;
 
   } catch (err) {
 
@@ -1006,7 +1006,8 @@ const rewardAmount =
 
   </div>
 )}
-{activeRide && (
+{activeRide &&
+ activeRide.status !== "completed" && (
 
 <div className="bg-black text-white rounded-[30px] p-5 space-y-4">
 

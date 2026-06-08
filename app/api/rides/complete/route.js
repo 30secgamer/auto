@@ -5,87 +5,74 @@ import User from "@/models/User";
 import { connectDB } from "@/lib/db";
 
 export async function POST(req) {
-
   try {
-
     await connectDB();
 
-    const { rideId } =
-      await req.json();
+    const { rideId } = await req.json();
 
-    const ride =
-      await Ride.findById(rideId);
-      if (ride?.status === "completed") {
-  return NextResponse.json({
-    success: true,
-    message: "Ride already completed",
-  });
-}
-
-    if (!ride) {
-
-      return NextResponse.json(
-        {
-          message: "Ride not found",
+    // ✅ Atomic completion
+    const ride = await Ride.findOneAndUpdate(
+      {
+        _id: rideId,
+        status: { $ne: "completed" },
+      },
+      {
+        $set: {
+          status: "completed",
+          completedAt: new Date(),
         },
-        {
-          status: 404,
-        }
-      );
+      },
+      {
+        new: true,
+      }
+    );
+
+    // Already completed
+    if (!ride) {
+      return NextResponse.json({
+        success: true,
+        message: "Ride already completed",
+      });
     }
 
-ride.status = "completed";
-ride.completedAt = new Date();
+    const rewardAmount =
+      Number(ride.distance) >= 10
+        ? 2
+        : 1;
 
-await ride.save();
+    // ✅ Update Driver
+    await Driver.findByIdAndUpdate(
+      ride.driverId,
+      {
+        $inc: {
+          totalRides: 1,
+          totalEarnings: Number(
+            ride.fare || 0
+          ),
+          rewardBalance: rewardAmount,
+          rewardRides: 1,
+        },
+      }
+    );
 
-    // ✅ UPDATE DRIVER
-   // ✅ REWARD CALCULATION
+    // ✅ Update User
+    await User.findOneAndUpdate(
+      {
+        phone: ride.passengerPhone,
+      },
+      {
+        $inc: {
+          rewardBalance: rewardAmount,
+          rewardRides: 1,
+        },
+      }
+    );
 
-const rewardAmount =
-  Number(ride.distance) >= 10
-    ? 2
-    : 1;
-
-// ✅ UPDATE DRIVER
-
-const updatedDriver =
-  await Driver.findByIdAndUpdate(
-    ride.driverId,
-  ride.driverId,
-  {
-    $inc: {
-      totalRides: 1,
-      totalEarnings: ride.fare,
-
-      rewardBalance: rewardAmount,
-      rewardRides: 1,
-    },
-  }
-);
-console.log(
-  "UPDATED DRIVER",
-  updatedDriver
-);
-// ✅ UPDATE USER
-
-await User.findOneAndUpdate(
-  {
-    phone: ride.passengerPhone,
-  },
-  {
-    $inc: {
-      rewardBalance: rewardAmount,
-      rewardRides: 1,
-    },
-  }
-);
     return NextResponse.json({
       success: true,
     });
 
   } catch (err) {
-
     console.log(err);
 
     return NextResponse.json(
